@@ -1,5 +1,6 @@
 require "rtmidi"
 require_relative "lib/Boutique"
+require 'pp'
 
 midiin = RtMidi::In.new
 
@@ -25,10 +26,10 @@ port_index = select_port(midiin) until port_index
 # System Exclusive (SysEx), timing, active sensing
 
 midiin.receive_message do |*bytes|
-	CS = (100 - ((0x03 + 0x00 + P1 + P2 + V1 + V2) & 0xFF)) & 0x7F
-	bytes = [0xF0, 0x41, 0x10, 0x00, 0x00, 0x00, 0x1C, 0x12, 0x03, 0x00, P1, P2, V1, V2, CS, F7]
-
-	controller, value = Boutique.translate_from(bytes)
+	if bytes.length > 1 && bytes[0] == 0xF0
+		controller, value = Boutique.translate_from(bytes)
+		puts "got [#{controller}, #{value}]"
+	end
 end
 
 puts "Receiving MIDI messages including SysEx..."
