@@ -23,11 +23,12 @@
 
 std::string my_port = "UM-ONE";
 
-RtMidiIn *midi_in = new RtMidiIn();
-RtMidiOut *midi_out = new RtMidiOut();
+RtMidiIn *boutique_midi_in = new RtMidiIn();
+RtMidiOut *boutique_midi_out = new RtMidiOut();
+RtMidiIn *daw_midi_in = new RtMidiIn();
+RtMidiOut *daw_midi_out = new RtMidiOut();
 
-// interpret the data from ableton
-void midi_callback(double deltatime, std::vector< unsigned char > *message, void *userData) {
+void boutique_midi_callback(double deltatime, std::vector< unsigned char > *message, void *userData) {
     unsigned int num_bytes = message->size();
 
     if (num_bytes < 16) {
@@ -42,7 +43,7 @@ void midi_callback(double deltatime, std::vector< unsigned char > *message, void
     unsigned char controller = ((p_1 << 4) | p_2) / 2;
     unsigned char value = ((v_1 << 4) | v_2) / 2;
 
-    printf("\ngot [%d, %d]", controller, value);
+    // printf("\ngot [%d, %d]", controller, value);
 
     // send the message over MIDI
 
@@ -51,26 +52,57 @@ void midi_callback(double deltatime, std::vector< unsigned char > *message, void
     new_message[1] = controller;
     new_message[2] = value;
 
-    midi_out->sendMessage(&new_message);
+    daw_midi_out->sendMessage(&new_message);
+
+    return;
+}
+
+// todo: pass on noteon/noteoff
+void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, void *userData) {
+    unsigned int num_bytes = message->size();
+
+    unsigned char message_type = (unsigned char)message->at(0);
+
+    if (num_bytes != 3 || message_type != 176) {
+        return;
+    }
+
+    unsigned char controller = (unsigned char)message->at(1);
+    unsigned char value = (unsigned char)message->at(2);
+
+    printf("\ngot [%d, %d]", controller, value);
+
+
+
+
+
+
+
+    
 
     return;
 }
 
 int main(int argc, char* argv[]) {
 
-    // midi_in = ;
-    // midi_out = ();
-
     int found_port = 0;
 
-    unsigned int nPorts = midi_in->getPortCount();
     std::string port_name;
-    for ( unsigned int i=0; i<nPorts; i++ ) {
-        port_name = midi_in->getPortName(i);
+    for ( unsigned int i=0; i<boutique_midi_in->getPortCount(); i++ ) {
+        port_name = boutique_midi_in->getPortName(i);
         if (port_name == my_port) {
             printf("found port!\n");
             found_port = 1;
-            midi_in->openPort(i);
+            boutique_midi_in->openPort(i);
+        }
+    }
+
+    for ( unsigned int i=0; i<boutique_midi_out->getPortCount(); i++ ) {
+        port_name = boutique_midi_out->getPortName(i);
+        if (port_name == my_port) {
+            printf("found port!\n");
+            found_port = 1;
+            boutique_midi_out->openPort(i);
         }
     }
 
@@ -79,12 +111,14 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    midi_in->setCallback(&midi_callback);
+    boutique_midi_in->setCallback(&boutique_midi_callback);
 
-    midi_out->openVirtualPort("Boutique Control");
+    daw_midi_out->openVirtualPort("Boutique Control");
+    daw_midi_in->openVirtualPort("Boutique Control");
+    daw_midi_in->setCallback(&daw_midi_callback);
 
     // Don't ignore sysex, timing, or active sensing messages.
-    midi_in->ignoreTypes( false, false, false );
+    boutique_midi_in->ignoreTypes( false, false, false );
     printf("\nReading MIDI input ... press <enter> to quit.\n");
     char input;
     std::cin.get(input);
