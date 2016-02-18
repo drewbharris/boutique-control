@@ -70,15 +70,46 @@ void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, 
     unsigned char controller = (unsigned char)message->at(1);
     unsigned char value = (unsigned char)message->at(2);
 
-    printf("\ngot [%d, %d]", controller, value);
+    // printf("\ngot [%d, %d]", controller, value);
 
+    // bytes = [0xF0, 0x41, 0x10, 0x00, 0x00, 0x00, 0x1C, 0x12, 0x03, 0x00, P1, P2, V1, V2, CS, F7]
 
+    std::vector<unsigned char> new_message(16);
 
+    // start system exclusive
+    new_message[0] = 0xF0;
 
+    // boilerplate
+    new_message[1] = 0x41;
+    new_message[2] = 0x10;
+    new_message[3] = 0x00;
+    new_message[4] = 0x00;
+    new_message[5] = 0x00;
+    new_message[6] = 0x1D; // 1D: juno, 1E: jx, 1C: jupiter
+    new_message[7] = 0x12;
+    new_message[8] = 0x03;
+    new_message[9] = 0x00;
 
+    // parameter
+    unsigned char p_1 = (controller / 2) << 4;
+    unsigned char p_2 = (controller / 2) & 0x0F;
+    new_message[10] = p_1;
+    new_message[11] = p_2;
 
+    // value
+    unsigned char v_1 = (value / 2) << 4;
+    unsigned char v_2 = (value / 2) & 0x0F;
+    new_message[12] = v_1;
+    new_message[13] = v_2;
 
-    
+    // checksum
+    unsigned char cs = (100 - ((0x03 + 0x00 + p_1 + p_2 + v_1 + v_2) & 0xFF)) & 0x7F;
+    new_message[14] = cs;
+
+    // end
+    new_message[0] = 0xF7;
+
+    boutique_midi_out->sendMessage(&new_message);
 
     return;
 }
