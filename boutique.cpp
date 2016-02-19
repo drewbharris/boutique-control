@@ -26,6 +26,14 @@ RtMidiOut *boutique_midi_out = new RtMidiOut();
 RtMidiIn *daw_midi_in = new RtMidiIn();
 RtMidiOut *daw_midi_out = new RtMidiOut();
 
+unsigned char debug_mode = 0;
+
+// midi channel == device number
+// JX-03: 1 (0x1E)
+// JP-08: 2 (0x1C)
+// JU-06: 3 (0x0D)
+unsigned int device_number = 3;
+
 void boutique_midi_callback(double deltatime, std::vector< unsigned char > *message, void *userData) {
     unsigned int num_bytes = message->size();
 
@@ -33,11 +41,13 @@ void boutique_midi_callback(double deltatime, std::vector< unsigned char > *mess
         return;
     }
 
-    // printf("incoming message: [");
-    // for (int i = 0; i < message->size(); i++) {
-    //     printf("0x%x,", message->at(i));
-    // }
-    // printf("]\n");
+    if (debug_mode) {
+        printf("incoming message: [");
+        for (int i = 0; i < message->size(); i++) {
+            printf("0x%x,", message->at(i));
+        }
+        printf("]\n");
+    }
 
     unsigned char p_1 = (unsigned char)message->at(10);
     unsigned char p_2 = (unsigned char)message->at(11);
@@ -52,7 +62,7 @@ void boutique_midi_callback(double deltatime, std::vector< unsigned char > *mess
     // send the message over MIDI
 
     std::vector<unsigned char> new_message(3);
-    new_message[0] = 176;
+    new_message[0] = 175 + device_number;
     new_message[1] = controller;
     new_message[2] = value;
 
@@ -67,7 +77,7 @@ void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, 
 
     unsigned char message_type = (unsigned char)message->at(0);
 
-    if (num_bytes != 3 || message_type != 178) { // 176 - channel 1, 177 - channel 2, 178 - channel 3
+    if (num_bytes != 3 || message_type != (175 + device_number)) { // 176 - channel 1, 177 - channel 2, 178 - channel 3
         boutique_midi_out->sendMessage(message);
         return;
     }
@@ -86,7 +96,19 @@ void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, 
     new_message[3] = 0x00;
     new_message[4] = 0x00;
     new_message[5] = 0x00;
-    new_message[6] = 0x1D; // 1D: juno, 1E: jx, 1C: jupiter
+
+    unsigned char device_id = 0;
+    if (device_number == 1) {
+        device_id = 0x1E;
+    }
+    else if (device_number == 2) {
+        device_id = 0x1C;
+    }
+    if (device_number == 3) {
+        device_id = 0x1D;
+    }
+
+    new_message[6] = device_id;
     new_message[7] = 0x12;
     new_message[8] = 0x03;
     new_message[9] = 0x00;
@@ -117,12 +139,13 @@ void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, 
     // end
     new_message[15] = 0xF7;
 
-    // debug
-    // printf("outgoing message: [");
-    // for (int i = 0; i < new_message.size(); i++) {
-    //     printf("0x%x,", new_message[i]);
-    // }
-    // printf("]\n");
+    if (debug_mode) {
+        printf("outgoing message: [");
+        for (int i = 0; i < new_message.size(); i++) {
+            printf("0x%x,", new_message[i]);
+        }
+        printf("]\n");
+    }
 
     boutique_midi_out->sendMessage(&new_message);
 
@@ -131,13 +154,17 @@ void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, 
 
 void print_usage() {
     printf("Usage:\n");
-    printf("boutique-ctrl --input=(port number) --output=(port number) [--help]\n\n");
+    printf("boutique-ctrl --input=(port number) --output=(port number) --device=(device number) [--help]\n\n");
 }
 
 int main(int argc, char* argv[]) {
 
+    // TODO: allow setting of midi channel here
     for (unsigned int i = 0; i < argc; i++) {
-        if (strncmp(argv[i], "--input", 7) == 0) {
+        if (strncmp(argv[i], "--debug", 7) == 0) {
+            debug_mode = 1;
+        }
+        else if (strncmp(argv[i], "--input", 7) == 0) {
             char * port_array = strtok(argv[i],"--input="); 
             int port_number = port_array[0] - 48;
             printf("opening input port %d\n", port_number);
@@ -148,6 +175,19 @@ int main(int argc, char* argv[]) {
             int port_number = port_array[0] - 48;
             printf("opening output port %d\n", port_number);
             boutique_midi_out->openPort(port_number);
+        }
+        else if (strncmp(argv[i], "--device", 8) == 0) {
+            char * device_array = strtok(argv[i],"--device="); 
+
+            if (strncmp(device_array, "JX-03", 5)) {
+                device_number = 1;
+            }
+            else if (strncmp(device_array, "JP-08", 5)) {
+                device_number = 2;
+            }
+            else if (strncmp(device_array, "JU-06", 5)) {
+                device_number = 3;
+            }
         }
         else if (strncmp(argv[i], "--list", 6) == 0) {
             std::string portName;
