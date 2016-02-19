@@ -33,6 +33,12 @@ void boutique_midi_callback(double deltatime, std::vector< unsigned char > *mess
         return;
     }
 
+    // printf("incoming message: [");
+    // for (int i = 0; i < message->size(); i++) {
+    //     printf("0x%x,", message->at(i));
+    // }
+    // printf("]\n");
+
     unsigned char p_1 = (unsigned char)message->at(10);
     unsigned char p_2 = (unsigned char)message->at(11);
     unsigned char v_1 = (unsigned char)message->at(12);
@@ -85,38 +91,38 @@ void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, 
     new_message[8] = 0x03;
     new_message[9] = 0x00;
 
-    printf("\ncontroller, value: %d, %d\n", controller, value);
-
     // parameter
-    unsigned char p_1 = (controller / 2) >> 4;
-    unsigned char p_2 = (controller / 2) & 0x0F;
+    unsigned char p_1 = (controller * 2) >> 4;
+    unsigned char p_2 = (controller * 2) & 0x0F;
+
     new_message[10] = p_1;
     new_message[11] = p_2;
 
     printf("p_1, p_2: %d, %d\n", p_1, p_2);
 
     // value
-    unsigned char v_1 = (value / 2) >> 4;
-    unsigned char v_2 = (value / 2) & 0x0F;
+    unsigned char v_1 = (value * 2) >> 4;
+    unsigned char v_2 = (value * 2) & 0x0F;
+
+    printf("v_1, v_2: %d, %d\n", v_1, v_2);
+
     new_message[12] = v_1;
     new_message[13] = v_2;
 
     // checksum
-    unsigned char cs = (100 - ((0x03 + 0x00 + p_1 + p_2 + v_1 + v_2) & 0xFF)) & 0x7F;
+    unsigned char cs = (0x100 - ((0x03 + 0x00 + p_1 + p_2 + v_1 + v_2) & 0xFF)) & 0x7F;
+    
     new_message[14] = cs;
 
     // end
     new_message[15] = 0xF7;
 
-    // bytes = [0xF0, 0x41, 0x10, 0x00, 0x00, 0x00, 0x1C, 0x12, 0x03, 0x00,  P1,  P2,   V1,  V2,   CS,   F7]
-    //         [0xf0, 0x41, 0x10, 0x00, 0x00, 0x00, 0x1d, 0x12, 0x3,  0x0,  0x0, 0x0, 0xc0, 0xc, 0x15, 0xf7,]
-
     // debug
-    printf("message: [");
-    for (int i = 0; i < new_message.size(); i++) {
-        printf("0x%x,", new_message[i]);
-    }
-    printf("]\n");
+    // printf("outgoing message: [");
+    // for (int i = 0; i < new_message.size(); i++) {
+    //     printf("0x%x,", new_message[i]);
+    // }
+    // printf("]\n");
 
     boutique_midi_out->sendMessage(&new_message);
 
