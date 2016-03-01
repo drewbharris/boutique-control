@@ -31,7 +31,7 @@ unsigned char debug_mode = 0;
 // midi channel == device number
 // JX-03: 1 (0x1E)
 // JP-08: 2 (0x1C)
-// JU-06: 3 (0x0D)
+// JU-06: 3 (0x1D)
 unsigned int device_number = 3;
 
 void boutique_midi_callback(double deltatime, std::vector< unsigned char > *message, void *userData) {
@@ -62,7 +62,7 @@ void boutique_midi_callback(double deltatime, std::vector< unsigned char > *mess
     // send the message over MIDI
 
     std::vector<unsigned char> new_message(3);
-    new_message[0] = 175 + device_number;
+    new_message[0] = 175 + device_number; // channel
     new_message[1] = controller;
     new_message[2] = value;
 
@@ -179,14 +179,17 @@ int main(int argc, char* argv[]) {
         else if (strncmp(argv[i], "--device", 8) == 0) {
             char * device_array = strtok(argv[i],"--device="); 
 
-            if (strncmp(device_array, "JX-03", 5)) {
+            if (strncmp(device_array, "JX03", 4) == 0) {
                 device_number = 1;
+                printf("device is JX-03\n");
             }
-            else if (strncmp(device_array, "JP-08", 5)) {
+            else if (strncmp(device_array, "JP08", 4) == 0) {
                 device_number = 2;
+                printf("device is JP-08\n");
             }
-            else if (strncmp(device_array, "JU-06", 5)) {
+            else if (strncmp(device_array, "JU06", 4) == 0) {
                 device_number = 3;
+                printf("device is JU-06\n");
             }
         }
         else if (strncmp(argv[i], "--list", 6) == 0) {
