@@ -25,8 +25,10 @@ RtMidiIn *boutique_midi_in = new RtMidiIn();
 RtMidiOut *boutique_midi_out = new RtMidiOut();
 RtMidiIn *daw_midi_in = new RtMidiIn();
 RtMidiOut *daw_midi_out = new RtMidiOut();
+RtMidiIn *external_midi_in = new RtMidiIn();
 
 unsigned char debug_mode = 0;
+unsigned char using_external = 0;
 
 // midi channel == device number
 // JX-03: 1 (0x1E)
@@ -37,41 +39,45 @@ unsigned int device_number = 3;
 void boutique_midi_callback(double deltatime, std::vector< unsigned char > *message, void *userData) {
     unsigned int num_bytes = message->size();
 
-    if (num_bytes < 16) {
+    // sync?
+    if (num_bytes == 1) {
         return;
     }
-
-    if (debug_mode) {
-        printf("incoming message: [");
-        for (int i = 0; i < message->size(); i++) {
-            printf("0x%x,", message->at(i));
+    else if (num_bytes == 16) {
+        if (debug_mode) {
+            printf("incoming message: [");
+            for (int i = 0; i < message->size(); i++) {
+                printf("0x%x,", message->at(i));
+            }
+            printf("]\n");
         }
-        printf("]\n");
+
+        unsigned char p_1 = (unsigned char)message->at(10);
+        unsigned char p_2 = (unsigned char)message->at(11);
+        unsigned char v_1 = (unsigned char)message->at(12);
+        unsigned char v_2 = (unsigned char)message->at(13);
+
+        unsigned char controller = ((p_1 << 4) | p_2) / 2;
+        unsigned char value = ((v_1 << 4) | v_2) / 2;
+
+        // printf("\ngot [%d, %d]", controller, value);
+
+        // send the message over MIDI
+
+        std::vector<unsigned char> new_message(3);
+        new_message[0] = 175 + device_number; // channel
+        new_message[1] = controller;
+        new_message[2] = value;
+
+        daw_midi_out->sendMessage(&new_message);
+
+        return;
     }
-
-    unsigned char p_1 = (unsigned char)message->at(10);
-    unsigned char p_2 = (unsigned char)message->at(11);
-    unsigned char v_1 = (unsigned char)message->at(12);
-    unsigned char v_2 = (unsigned char)message->at(13);
-
-    unsigned char controller = ((p_1 << 4) | p_2) / 2;
-    unsigned char value = ((v_1 << 4) | v_2) / 2;
-
-    // printf("\ngot [%d, %d]", controller, value);
-
-    // send the message over MIDI
-
-    std::vector<unsigned char> new_message(3);
-    new_message[0] = 175 + device_number; // channel
-    new_message[1] = controller;
-    new_message[2] = value;
-
-    daw_midi_out->sendMessage(&new_message);
-
-    return;
+    else {
+        daw_midi_out->sendMessage(message);
+    }
 }
 
-// todo: pass on noteon/noteoff
 void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, void *userData) {
     unsigned int num_bytes = message->size();
 
@@ -84,6 +90,11 @@ void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, 
 
     unsigned char controller = (unsigned char)message->at(1);
     unsigned char value = (unsigned char)message->at(2);
+
+    // ableton sends this - don't use it
+    if (controller == 123) {
+        return;
+    }
 
     std::vector<unsigned char> new_message(16);
 
@@ -152,6 +163,11 @@ void daw_midi_callback(double deltatime, std::vector< unsigned char > *message, 
     return;
 }
 
+void external_midi_callback(double deltatime, std::vector< unsigned char > *message, void *userData) {
+    boutique_midi_out->sendMessage(message);
+    return;
+}
+
 void print_usage() {
     printf("Usage:\n");
     printf("boutique-ctrl --input=(port number) --output=(port number) --device=(device number) [--help]\n\n");
@@ -175,6 +191,13 @@ int main(int argc, char* argv[]) {
             int port_number = port_array[0] - 48;
             printf("opening output port %d\n", port_number);
             boutique_midi_out->openPort(port_number);
+        }
+        else if (strncmp(argv[i], "--ext-control", 13) == 0) {
+            char * port_array = strtok(argv[i],"--ext-control="); 
+            int port_number = port_array[0] - 48;
+            printf("opening external control port %d\n", port_number);
+            external_midi_in->openPort(port_number);
+            using_external = 1;
         }
         else if (strncmp(argv[i], "--device", 8) == 0) {
             char * device_array = strtok(argv[i],"--device="); 
@@ -221,8 +244,15 @@ int main(int argc, char* argv[]) {
     daw_midi_in->openVirtualPort("Boutique Control");
     daw_midi_in->setCallback(&daw_midi_callback);
 
+    if (using_external) {
+        external_midi_in->setCallback(&external_midi_callback);
+        external_midi_in->ignoreTypes( false, false, false );
+    }
+
     // Don't ignore sysex, timing, or active sensing messages.
     boutique_midi_in->ignoreTypes( false, false, false );
+    daw_midi_in->ignoreTypes( false, false, false );
+
     printf("\nReading MIDI input ... press <enter> to quit.\n");
     char input;
     std::cin.get(input);

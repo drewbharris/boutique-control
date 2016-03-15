@@ -2,7 +2,7 @@ CC = g++
 
 CFLAGS = -stdlib=libc++ -Wall -D__MACOSX_CORE__ -framework CoreMidi -framework CoreAudio -framework CoreFoundation
 
-TARGET = boutique
+TARGET = boutique-control
 DEP = lib/RtMidi
 
 all: $(TARGET)
